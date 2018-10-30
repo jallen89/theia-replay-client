@@ -1,0 +1,6 @@
+marshmallow==2.15.3
+requests==2.9.1
+marshmallow_mongoengine==0.9.1
+click==6.7
+mongoengine==0.15.3
+configparser==3.5.0

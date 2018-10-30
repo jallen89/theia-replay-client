@@ -1,0 +1,272 @@
+#!/usr/bin/python
+"""A client-side utility to interact with Theia's replay system."""
+
+import os
+import pickle
+import requests
+import random
+import logging
+import requests
+import datetime as dt
+import sys
+
+import click
+import mongoengine as me
+from marshmallow_mongoengine import ModelSchema
+from marshmallow import fields, pprint, post_load, schema
+import configparser
+
+
+log = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+config = configparser.ConfigParser()
+config.read("./client.cfg")
+
+CLIENT_OUT = config["out"]["out_state"]
+# Query types.
+BACKWARD = "backward"
+FORWARD = "forward"
+POINT2POINT = "point2point"
+
+
+class Query(me.Document):
+    """MongoDB Model for a Query object to send to Theia's replay server."""
+
+    _id = me.StringField(primary_key=True)
+    query_type = me.StringField()
+    uuid = me.StringField()
+    host_uuid = me.StringField()
+    start = me.StringField()
+    end = me.StringField()
+    hops = me.StringField()
+    uuid_end = me.StringField(default=None)
+    status = me.StringField(default="Initialized.")
+
+    @classmethod
+    def from_json(cls, query_json):
+        """Creates a query object from a json object."""
+        q = QuerySchema().load(query_json)
+        print "from_json: ", type(q), q
+        # return q.data
+        return q
+
+    def pprint(self):
+        """Prints query in json format. """
+        pprint(self.query_schema.dump(self))
+
+    def send(self, address):
+        """Send query to replay server."""
+        #data = QuerySchema().dump(self).data
+        data = QuerySchema().dump(self)
+        log.debug("Sending: {0}".format(data))
+        requests.post("http://{0}/query/{1}".format(address, self._id),
+                      data=data)
+
+    def dump(self):
+        q = QuerySchema().dump(self)
+        print "dump type: ", type(q)
+        # return q.data
+        return q
+
+    def __str__(self):
+        return '<Query({0}>'.format(self.dump())
+
+
+class QuerySchema(ModelSchema):
+    """Schema for serializing and deserializing queries."""
+    class Meta:
+        model = Query
+
+
+class Client(object):
+    """Client class to save persistent info."""
+
+    def __init__(self):
+        self.team_id = config['metadata']['team']
+        self.outfile = CLIENT_OUT.format(self.team_id)
+        self.ques_made = list()
+        self.q_id = 0
+        self.export_client()
+
+    @classmethod
+    def load_client(cls):
+        """Loads a saved client from CLIENT_OUT"""
+        team_id = config['metadata']['team']
+        c_out = CLIENT_OUT.format(team_id)
+
+        # Create new client.
+        if not os.path.exists(c_out):
+            return Client()
+
+        with open(c_out, 'r') as infile:
+            client = pickle.load(infile)
+
+        # Always increment q_id by 1 when loading clietn.
+        client.q_id = random.randint(0, 10000000)
+        return client
+
+    def export_client(self):
+        """Save client to CLIENT_OUT."""
+        with open(self.outfile, 'w') as out:
+            pickle.dump(self, out)
+
+    def q_inc(self):
+        """Gets q_id and increments."""
+        self.q_id += 1
+        return self.q_id - 1
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command("forward-query")
+@click.argument("uuid", required=True)
+@click.argument("host-uuid", required=True)
+@click.argument("start-ts", required=True)
+@click.argument("end-ts", required=True)
+@click.argument("hops", required=True)
+def forward_query(uuid, host_uuid, start_ts, end_ts, hops):
+    """Sends a request to make a forward query to Theia's replay system.
+
+    Arguments:
+    uuid - The UUID of the CDM record in which the query will be applied.
+
+    host-uuid - The UUID of the Host.
+
+    start-ts - The start timestamp. Event records with timestamps prior to
+    the start timestamp will not be involved in the query.
+
+    end-ts - The end timestamp. Event records with timestamps after the end
+    timestamp will not be involved in the query.
+
+    hops - The analysis will span across 'hops' nodes from the target
+    node.
+
+    Returns:
+        Returns a receipt for this query along with the query's ID.
+    """
+    team_id = config['metadata']['team']
+    query = Query(team_id + str(client.q_inc()),
+                  FORWARD, uuid, host_uuid, start_ts, end_ts, hops)
+    r_addr = config["metadata"]["replay_server_ip"]
+    client.ques_made.append(query)
+    query.send(r_addr)
+    client.export_client()
+
+
+@cli.command("backward-query")
+@click.argument("uuid", required=True)
+@click.argument("host-uuid", required=True)
+@click.argument("start-ts", required=True)
+@click.argument("end-ts", required=True)
+@click.argument("hops", required=True)
+def backward_query(uuid, host_uuid, start_ts, end_ts, hops):
+    """Sends a request to make a backward query to Theia's replay system.
+
+    Arguments:
+    uuid - The UUID of the CDM record in which the query will be applied.
+
+    host-uuid - The UUID of the Host.
+
+    start-ts - The start timestamp. Event records with timestamps prior to
+    the start timestamp will not be involved in the query.
+
+    end-ts - The end timestamp. Event records with timestamps after the end
+    timestamp will not be involved in the query.
+
+    hops - The analysis will span across 'hops' nodes from the target
+    node.
+
+    Returns:
+        Returns a receipt for this query along with the query's ID.
+    """
+    team_id = config['metadata']['team']
+    query = Query(team_id + str(client.q_inc()),
+                  BACKWARD, uuid, host_uuid, start_ts, end_ts, hops)
+    r_addr = config["metadata"]["replay_server_ip"]
+    client.ques_made.append(query)
+    query.send(r_addr)
+    client.export_client()
+
+
+@cli.command("point-to-point-query")
+@click.argument("uuid-begin", required=True)
+@click.argument("uuid-end", required=True)
+@click.argument("host-uuid", required=True)
+@click.argument("start-ts", required=True)
+@click.argument("end-ts", required=True)
+@click.argument("hops", required=True)
+def point_to_point_query(
+        uuid_begin,
+        uuid_end,
+        host_uuid,
+        start_ts,
+        end_ts,
+        hops):
+    """Sends a request to make a point-to-point query to Theia's replay system.
+
+    Arguments:
+    uuid_start - The UUID of the CDM record in which the query will start.
+
+    uuid_end - The UUID of the CDM record in which the query will end.
+
+    host-uuid - The UUID of the Host.
+
+    start-ts - The start timestamp. Event records with timestamps prior to
+    the start timestamp will not be involved in the query.
+
+    end-ts - The end timestamp. Event records with timestamps after the end
+    timestamp will not be involved in the query.
+
+    hops - The analysis will span across 'hops' nodes from the target
+    node.
+
+    Returns:
+        Returns a receipt for this query along with the query's ID.
+    """
+    # XXX. Add optional paramter for uuid2, but make it required for
+    # point-to-point analysis.
+    team_id = config['metadata']['team']
+    query = Query(team_id + str(client.q_inc()), POINT2POINT, uuid_begin,
+                  host_uuid, start_ts, end_ts, hops, uuid_end)
+    r_addr = config["metadata"]["replay_server_ip"]
+    client.ques_made.append(query)
+    query.send(r_addr)
+    client.export_client()
+
+
+@cli.command("status")
+@click.argument("query-id")
+def status(query_id):
+    """Sends a request for a status update for a query that has already been
+    requested.
+
+    Arguments:
+
+        query-id - The query-id, which is the query id returned by the query
+        command. (ex: ripe-1)
+
+    Returns:
+        A json object with metadata related to the query's status.
+    """
+    r_addr = config["metadata"]["replay_server_ip"]
+    r = requests.get("http://{0}/query/{1}".format(r_addr, query_id))
+    print "Query Status: {0}".format(r.content)
+
+
+@cli.command("show")
+def show():
+    """Show all queries made."""
+
+    for q in client.ques_made:
+        r_addr = config["metadata"]["replay_server_ip"]
+        r = requests.get("http://{0}/query/{1}".format(r_addr, q._id))
+        print "Query: {0}".format(r.content)
+
+
+if __name__ == '__main__':
+    client = Client.load_client()
+    cli()
