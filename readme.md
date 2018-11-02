@@ -77,36 +77,39 @@ Options:
     status                Sends a request for a status update for a...
 ```
 
-Get information about a specific command.
+### Get information about a specific command.
 
 ```
-$ ./theia-client backward-query --help
-usage: theia-client backward-query [OPTIONS] UUID HOST_UUID START_TS END_TS
-                                   HOPS
+./theia-client backward-query --help
+Usage: theia-client backward-query [OPTIONS] UUID HOST_UUID
 
   Sends a request to make a backward query to Theia's replay system.
 
-  Arguments: 
-
-  uuid - The UUID of the CDM record in which the query will be
+  Arguments: uuid - The UUID of the CDM record in which the query will be
   applied.
 
   host-uuid - The UUID of the Host.
 
   start-ts - The start timestamp. Event records with timestamps prior to the
-  start timestamp will not be involved in the query.
+  start timestamp will not be involved in the query (default: 0).
 
   end-ts - The end timestamp. Event records with timestamps after the end
-  timestamp will not be involved in the query.
+  timestamp will not be involved in the query (default: 9999999999999999999).
 
-  hops - The analysis will span across 'hops' nodes from the target node.
+  hops - The analysis will span across 'hops' nodes from the target node
+  (default 2) NOTE: (It is recommended to use <= 5 hops).
+
+  timeout - A timeout for the query in minutes (default 30 minutes).
 
   Returns:     Returns a receipt for this query along with the query's ID.
 
 Options:
-  --help  Show this message and exit.
+  --start-ts INTEGER
+  --end-ts INTEGER
+  --hops INTEGER
+  --timeout INTEGER
+  --help              Show this message and exit.
 ```
-
 
 Examples
 =====
@@ -135,10 +138,11 @@ The status of a query can have the following states:
 * Reachability Analsys -- The server is running reachability analysis.
 * Finished -- The query is finished, and the Kafka topic contains the
   Provenance records. 
+* Timeout -- The query did was timed out.
 
 
 #### List all queries made
-You can locate the query ID for all queries using the `list` command:
+You can locate the query ID for all queries using the `show` command:
 
 ```
 $ theia-client show

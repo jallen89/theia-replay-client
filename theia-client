@@ -37,9 +37,10 @@ class Query(me.Document):
     query_type = me.StringField()
     uuid = me.StringField()
     host_uuid = me.StringField()
-    start = me.StringField()
-    end = me.StringField()
+    start = me.StringField(default="0")
+    end = me.StringField(default="9999999999999")
     hops = me.StringField()
+    timeout = me.StringField()
     uuid_end = me.StringField(default=None)
     status = me.StringField(default="Initialized.")
 
@@ -48,7 +49,7 @@ class Query(me.Document):
         """Creates a query object from a json object."""
         q = QuerySchema().load(query_json)
         print "from_json: ", type(q), q
-        # return q.data
+        #return q.data
         return q
 
     def pprint(self):
@@ -61,12 +62,11 @@ class Query(me.Document):
         data = QuerySchema().dump(self)
         log.debug("Sending: {0}".format(data))
         requests.post("http://{0}/query/{1}".format(address, self._id),
-                      data=data)
-
+                       data=data)
     def dump(self):
         q = QuerySchema().dump(self)
         print "dump type: ", type(q)
-        # return q.data
+        #return q.data
         return q
 
     def __str__(self):
@@ -121,14 +121,14 @@ class Client(object):
 def cli():
     pass
 
-
 @cli.command("forward-query")
 @click.argument("uuid", required=True)
 @click.argument("host-uuid", required=True)
-@click.argument("start-ts", required=True)
-@click.argument("end-ts", required=True)
-@click.argument("hops", required=True)
-def forward_query(uuid, host_uuid, start_ts, end_ts, hops):
+@click.option("--start-ts", default=0)
+@click.option("--end-ts", default=1999999999999999999)
+@click.option("--hops", default=2)
+@click.option("--timeout", default=30)
+def forward_query(uuid, host_uuid, start_ts, end_ts, hops, timeout):
     """Sends a request to make a forward query to Theia's replay system.
 
     Arguments:
@@ -137,20 +137,22 @@ def forward_query(uuid, host_uuid, start_ts, end_ts, hops):
     host-uuid - The UUID of the Host.
 
     start-ts - The start timestamp. Event records with timestamps prior to
-    the start timestamp will not be involved in the query.
+    the start timestamp will not be involved in the query (default: 0).
 
     end-ts - The end timestamp. Event records with timestamps after the end
-    timestamp will not be involved in the query.
+    timestamp will not be involved in the query (default: 9999999999999999999).
 
     hops - The analysis will span across 'hops' nodes from the target
-    node.
+    node (default 2) NOTE: (It is recommended to use <= 5 hops).
+
+    timeout - A timeout for the query in minutes (default 30 minutes).
 
     Returns:
         Returns a receipt for this query along with the query's ID.
     """
     team_id = config['metadata']['team']
     query = Query(team_id + str(client.q_inc()),
-                  FORWARD, uuid, host_uuid, start_ts, end_ts, hops)
+                  FORWARD, uuid, host_uuid, start_ts, end_ts, hops, timeout)
     r_addr = config["metadata"]["replay_server_ip"]
     client.ques_made.append(query)
     query.send(r_addr)
@@ -160,10 +162,11 @@ def forward_query(uuid, host_uuid, start_ts, end_ts, hops):
 @cli.command("backward-query")
 @click.argument("uuid", required=True)
 @click.argument("host-uuid", required=True)
-@click.argument("start-ts", required=True)
-@click.argument("end-ts", required=True)
-@click.argument("hops", required=True)
-def backward_query(uuid, host_uuid, start_ts, end_ts, hops):
+@click.option("--start-ts", default=0)
+@click.option("--end-ts", default=1999999999999999999)
+@click.option("--hops", default=2)
+@click.option("--timeout", default=30)
+def backward_query(uuid, host_uuid, start_ts, end_ts, hops, timeout):
     """Sends a request to make a backward query to Theia's replay system.
 
     Arguments:
@@ -172,20 +175,22 @@ def backward_query(uuid, host_uuid, start_ts, end_ts, hops):
     host-uuid - The UUID of the Host.
 
     start-ts - The start timestamp. Event records with timestamps prior to
-    the start timestamp will not be involved in the query.
+    the start timestamp will not be involved in the query (default: 0).
 
     end-ts - The end timestamp. Event records with timestamps after the end
-    timestamp will not be involved in the query.
+    timestamp will not be involved in the query (default: 9999999999999999999).
 
     hops - The analysis will span across 'hops' nodes from the target
-    node.
+    node (default 2) NOTE: (It is recommended to use <= 5 hops).
+
+    timeout - A timeout for the query in minutes (default 30 minutes).
 
     Returns:
         Returns a receipt for this query along with the query's ID.
     """
     team_id = config['metadata']['team']
     query = Query(team_id + str(client.q_inc()),
-                  BACKWARD, uuid, host_uuid, start_ts, end_ts, hops)
+                  BACKWARD, uuid, host_uuid, start_ts, end_ts, hops, timeout)
     r_addr = config["metadata"]["replay_server_ip"]
     client.ques_made.append(query)
     query.send(r_addr)
@@ -196,16 +201,12 @@ def backward_query(uuid, host_uuid, start_ts, end_ts, hops):
 @click.argument("uuid-begin", required=True)
 @click.argument("uuid-end", required=True)
 @click.argument("host-uuid", required=True)
-@click.argument("start-ts", required=True)
-@click.argument("end-ts", required=True)
-@click.argument("hops", required=True)
-def point_to_point_query(
-        uuid_begin,
-        uuid_end,
-        host_uuid,
-        start_ts,
-        end_ts,
-        hops):
+@click.option("--start-ts", default=0)
+@click.option("--end-ts", default=199999999999999999)
+@click.option("--hops", default=2)
+@click.option("--timeout", default=30)
+def point_to_point_query(uuid_begin, uuid_end, host_uuid, start_ts, end_ts, 
+                         hops, timeout):
     """Sends a request to make a point-to-point query to Theia's replay system.
 
     Arguments:
@@ -216,13 +217,13 @@ def point_to_point_query(
     host-uuid - The UUID of the Host.
 
     start-ts - The start timestamp. Event records with timestamps prior to
-    the start timestamp will not be involved in the query.
+    the start timestamp will not be involved in the query (default: 0).
 
     end-ts - The end timestamp. Event records with timestamps after the end
-    timestamp will not be involved in the query.
+    timestamp will not be involved in the query (default: 9999999999999999999).
 
     hops - The analysis will span across 'hops' nodes from the target
-    node.
+    node (default 2) NOTE: (It is recommended to use <= 5 hops).
 
     Returns:
         Returns a receipt for this query along with the query's ID.
@@ -231,7 +232,7 @@ def point_to_point_query(
     # point-to-point analysis.
     team_id = config['metadata']['team']
     query = Query(team_id + str(client.q_inc()), POINT2POINT, uuid_begin,
-                  host_uuid, start_ts, end_ts, hops, uuid_end)
+                  host_uuid, start_ts, end_ts, hops, uuid_end, timeout)
     r_addr = config["metadata"]["replay_server_ip"]
     client.ques_made.append(query)
     query.send(r_addr)
