@@ -231,8 +231,8 @@ def point_to_point_query(uuid_begin, uuid_end, host_uuid, start_ts, end_ts,
     # XXX. Add optional paramter for uuid2, but make it required for
     # point-to-point analysis.
     team_id = config['metadata']['team']
-    query = Query(team_id + str(client.q_inc()), POINT2POINT, uuid_begin,
-                  host_uuid, start_ts, end_ts, hops, uuid_end, timeout)
+    query = Query(team_id + str(client.q_inc()), POINT2POINT, uuid_begin, 
+                  host_uuid, start_ts, end_ts, hops, timeout,  uuid_end)
     r_addr = config["metadata"]["replay_server_ip"]
     client.ques_made.append(query)
     query.send(r_addr)
