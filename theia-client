@@ -62,7 +62,7 @@ class Query(me.Document):
         data = QuerySchema().dump(self)
         log.debug("Sending: {0}".format(data))
         requests.post("http://{0}/query/{1}".format(address, self._id),
-                       data=data)
+                       data=data.data)
     def dump(self):
         q = QuerySchema().dump(self)
         print "dump type: ", type(q)
