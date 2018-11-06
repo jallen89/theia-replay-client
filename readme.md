@@ -12,6 +12,31 @@ Theia to provide a refined version of the provenance graph that only contains
 the true dependencies and does not suffer from dependency explosion. 
 
 
+Engagement 4 Notes:
+=======
+
+#### E4 Sample Query Data:
+
+We have provided sample Theia CDMv19 data in topic `ta1-theia-replay-sample-data`, which TA2 teams can 
+use to become familiar with our `theia-client` and replay server before the
+engagement. The topic contains records generated using the `ripe-prov-tests` and some background noise. 
+Each team can use their respective  replay server to make queries on the data in this topic. 
+
+
+#### Example Query
+
+The command below runs a sample forward query on the file `/home/darpa/ripe-prov-tests/Linux/README.md` 
+and the query result will show it leaks information to `/home/darpa/ripe-prov-tests/Linux/out.tmp`.
+```
+theia-client forward-query 0100d00f-6617-1600-0000-0000db56e05b 0a000642-5254-00f0-0860-000000000070
+```
+
+#### Known Issues
+
+* Before each replay, Theia will do a system-call level backward or forward
+  analysis. If the `hops` parameter is set to a high value (greater than 5),
+  then it may result in very long replay time.
+
 
 Prerequisties
 =====
